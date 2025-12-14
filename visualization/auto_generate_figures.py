@@ -7,7 +7,7 @@ from agents.random_agent import RandomAgent
 from agents.alphabeta_agent import AlphaBetaAgent
 from visualization.board_plot import save_board_image
 
-from experiments.run_setups import setup_A, setup_B, setup_C, setup_D
+from experiments.run_setups import setup_A, setup_B, setup_C, setup_D, setup_E
 
 
 def generate_game_snapshots(agent_a, agent_b, plies: int, out_dir: str, prefix: str) -> None:
@@ -36,11 +36,12 @@ def generate_game_snapshots(agent_a, agent_b, plies: int, out_dir: str, prefix: 
 def auto_generate(out_dir: str = "figures") -> None:
     os.makedirs(out_dir, exist_ok=True)
 
-    # Run all experiment setups (A/B/C/D) and generate charts + a pruned-tree figure.
+    # Run all experiment setups (A/B/C/D/E) and generate charts + a pruned-tree figure.
     setup_A(depth=3, n_states=12, plies=6, seed=0, out_dir=out_dir)
     setup_B(time_budget_s=0.05, max_depth=8, games=10, seed=0, out_dir=out_dir)  # saves setupB_depth.png
     setup_C(depth=3, games=20, seed=0, out_dir=out_dir)
     setup_D(depth=4, out_dir=out_dir)
+    setup_E(time_budget_s=0.2, games=10, seed=0, out_dir=out_dir)  # MCTS comparison
 
     # Extra: board snapshots for the report
     ab = AlphaBetaAgent(depth=3, use_ordering=True)

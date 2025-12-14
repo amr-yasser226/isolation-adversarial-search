@@ -86,11 +86,6 @@ def setup_A(depth: int = 3, n_states: int = 10, plies: int = 6, seed: int = 0, o
 # Setup B: same time budget per move (iterative deepening) + depth reached
 # -------------------------
 def setup_B(time_budget_s: float = 0.05, max_depth: int = 8, games: int = 10, seed: int = 0, out_dir: str = "figures"):
-    """
-    Measures:
-      - win rate vs random (sanity/strength under time constraints)
-      - depth reached per move (core requirement)
-    """
     os.makedirs(out_dir, exist_ok=True)
     print("\n[Setup B] Same time budget per move (iterative deepening)")
     mm = MinimaxAgent(depth=max_depth, time_budget_s=time_budget_s)
@@ -98,11 +93,6 @@ def setup_B(time_budget_s: float = 0.05, max_depth: int = 8, games: int = 10, se
     rnd = RandomAgent(seed=seed)
 
     def play_game_collect(agent_a, agent_b, collect_player: int):
-        """
-        Plays a game without using play_match so we can reliably collect per-move
-        info (depth/nodes/time) directly from choose_move().
-        Returns (winner, depths, nodes, times).
-        """
         s = GameState.new()
         depths, nodes, times = [], [], []
 
@@ -302,11 +292,151 @@ def setup_D(depth: int = 4, out_dir: str = "figures"):
     save_board_image(s.board, f"{out_dir}/setupD_initial_board.png", title="Initial State")
 
 
+# -------------------------
+# Setup E: MCTS vs Alpha-Beta comparison
+# -------------------------
+def setup_E(time_budget_s: float = 0.2, games: int = 10, seed: int = 0, out_dir: str = "figures"):
+    """
+    Compare MCTS vs Alpha-Beta:
+    - Head-to-head matchups
+    - Win rate vs Random
+    - Nodes/simulations per move
+    - Time per move
+    """
+    # Import here to avoid circular import
+    from agents.mcts_agent import MCTSAgent
+    
+    os.makedirs(out_dir, exist_ok=True)
+    print(f"\n[Setup E] MCTS vs Alpha-Beta comparison (time_budget={time_budget_s}s per move)")
+    
+    # Create agents with comparable time budgets
+    mcts = MCTSAgent(time_budget_s=time_budget_s, seed=seed)
+    ab = AlphaBetaAgent(depth=8, time_budget_s=time_budget_s, use_ordering=True)
+    rnd = RandomAgent(seed=seed)
+    
+    def play_game_stats(agent_a, agent_b, collect_player: int):
+        """Play a game and collect stats for the specified player."""
+        s = GameState.new()
+        nodes, times, sims = [], [], []
+        
+        while not s.is_terminal():
+            mover = s.active_player
+            agent = agent_a if mover == 1 else agent_b
+            info = agent.choose_move(s)
+            
+            if mover == collect_player:
+                nodes.append(int(info.get("nodes", 0)))
+                times.append(float(info.get("time_s", 0.0)))
+                sims.append(int(info.get("simulations", info.get("nodes", 0))))
+            
+            s = s.apply_move(info["move"])
+        
+        winner = -s.active_player
+        return winner, nodes, times, sims
+    
+    # MCTS vs Random
+    mcts_wins_vs_rnd = 0
+    mcts_nodes, mcts_times, mcts_sims = [], [], []
+    
+    for g in range(games):
+        if g % 2 == 0:
+            winner, nodes, times, sims = play_game_stats(mcts, rnd, 1)
+            smart_player = 1
+        else:
+            winner, nodes, times, sims = play_game_stats(rnd, mcts, -1)
+            smart_player = -1
+        
+        if winner == smart_player:
+            mcts_wins_vs_rnd += 1
+        mcts_nodes.extend(nodes)
+        mcts_times.extend(times)
+        mcts_sims.extend(sims)
+    
+    # Alpha-Beta vs Random
+    ab_wins_vs_rnd = 0
+    ab_nodes, ab_times = [], []
+    
+    for g in range(games):
+        if g % 2 == 0:
+            winner, nodes, times, _ = play_game_stats(ab, rnd, 1)
+            smart_player = 1
+        else:
+            winner, nodes, times, _ = play_game_stats(rnd, ab, -1)
+            smart_player = -1
+        
+        if winner == smart_player:
+            ab_wins_vs_rnd += 1
+        ab_nodes.extend(nodes)
+        ab_times.extend(times)
+    
+    # Head-to-head: MCTS vs AlphaBeta
+    mcts_wins_h2h = 0
+    ab_wins_h2h = 0
+    
+    for g in range(games):
+        if g % 2 == 0:
+            winner, _, _, _ = play_game_stats(mcts, ab, 0)
+            if winner == 1:
+                mcts_wins_h2h += 1
+            else:
+                ab_wins_h2h += 1
+        else:
+            winner, _, _, _ = play_game_stats(ab, mcts, 0)
+            if winner == 1:
+                ab_wins_h2h += 1
+            else:
+                mcts_wins_h2h += 1
+    
+    def safe_mean(xs):
+        return mean(xs) if xs else 0.0
+    
+    print(f"MCTS vs Random: wins={mcts_wins_vs_rnd}/{games}")
+    print(f"AlphaBeta vs Random: wins={ab_wins_vs_rnd}/{games}")
+    print(f"Head-to-head MCTS vs AlphaBeta: MCTS wins={mcts_wins_h2h}/{games}, AB wins={ab_wins_h2h}/{games}")
+    print(f"MCTS avg simulations/move: {safe_mean(mcts_sims):.1f}")
+    print(f"AlphaBeta avg nodes/move: {safe_mean(ab_nodes):.1f}")
+    print(f"MCTS avg time/move: {safe_mean(mcts_times):.4f}s")
+    print(f"AlphaBeta avg time/move: {safe_mean(ab_times):.4f}s")
+    
+    # Generate comparison plots
+    plot_bar_compare(
+        ["MCTS", "AlphaBeta"],
+        [mcts_wins_vs_rnd, ab_wins_vs_rnd],
+        f"Setup E: Wins vs Random (budget={time_budget_s}s)",
+        "Wins",
+        f"{out_dir}/setupE_wins_vs_random.png",
+    )
+    
+    plot_bar_compare(
+        ["MCTS", "AlphaBeta"],
+        [mcts_wins_h2h, ab_wins_h2h],
+        f"Setup E: Head-to-Head (budget={time_budget_s}s)",
+        "Wins",
+        f"{out_dir}/setupE_head_to_head.png",
+    )
+    
+    plot_bar_compare(
+        ["MCTS (sims)", "AlphaBeta (nodes)"],
+        [int(safe_mean(mcts_sims)), int(safe_mean(ab_nodes))],
+        f"Setup E: Avg Nodes/Simulations per Move",
+        "Count",
+        f"{out_dir}/setupE_nodes.png",
+    )
+    
+    return {
+        "mcts_wins_vs_rnd": mcts_wins_vs_rnd,
+        "ab_wins_vs_rnd": ab_wins_vs_rnd,
+        "mcts_wins_h2h": mcts_wins_h2h,
+        "ab_wins_h2h": ab_wins_h2h,
+    }
+
+
 def main():
     setup_A(depth=3, n_states=12, plies=6, seed=0, out_dir="figures")
     setup_B(time_budget_s=0.05, max_depth=8, games=10, seed=0, out_dir="figures")
     setup_C(depth=3, games=20, seed=0, out_dir="figures")
     setup_D(depth=4, out_dir="figures")
+    setup_E(time_budget_s=0.2, games=10, seed=0, out_dir="figures")
 
 
 if __name__ == "__main__":
