@@ -1,43 +1,12 @@
 from __future__ import annotations
 
 import time
-from typing import Any
 
 from agents.base import Agent
+from agents.utils import normalize_search_info
 from search.alphabeta import alphabeta, iterative_deepening_alphabeta
 from search.stats import SearchStats
 from search.evaluation import mobility_heuristic
-
-
-def _normalize_search_info(info: Any, *, default_depth: int, default_cutoffs: int = 0) -> dict:
-    """
-    Normalize outputs so the rest of the codebase can always rely on:
-    {move, value, depth, time_s, nodes, cutoffs}
-    """
-    if not isinstance(info, dict):
-        raise TypeError(f"Expected dict from search routine, got {type(info).__name__}")
-
-    out = dict(info)
-
-    # depth reached (iterative deepening) or fixed depth
-    if "depth" not in out or out["depth"] is None:
-        if "reached_depth" in out and out["reached_depth"] is not None:
-            out["depth"] = int(out["reached_depth"])
-        elif "max_depth" in out and out["max_depth"] is not None:
-            out["depth"] = int(out["max_depth"])
-        else:
-            out["depth"] = int(default_depth)
-
-    # time field normalization
-    if "time_s" not in out and "time" in out:
-        out["time_s"] = out["time"]
-
-    # required numeric fields
-    out.setdefault("time_s", 0.0)
-    out.setdefault("nodes", 0)
-    out.setdefault("cutoffs", default_cutoffs)
-
-    return out
 
 
 class AlphaBetaAgent(Agent):
@@ -71,7 +40,7 @@ class AlphaBetaAgent(Agent):
                 use_ordering=self.use_ordering,
                 use_tt=self.use_tt,
             )
-            return _normalize_search_info(info, default_depth=self.depth, default_cutoffs=0)
+            return normalize_search_info(info, default_depth=self.depth, default_cutoffs=0)
 
         # Fixed depth
         root = state.active_player

@@ -1,6 +1,5 @@
 from __future__ import annotations
 import math
-from typing import Tuple
 
 def terminal_utility(state, root_player: int) -> float:
     if not state.is_terminal():

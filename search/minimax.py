@@ -39,13 +39,13 @@ def minimax(
         best_val = float("-inf")
         for m in moves:
             v, _ = minimax(state.apply_move(m), depth - 1, eval_fn, root_player, stats, ctx, tt)
-            if v > best_val:
+            if v > best_val or best_move is None:
                 best_val, best_move = v, m
     else:
         best_val = float("inf")
         for m in moves:
             v, _ = minimax(state.apply_move(m), depth - 1, eval_fn, root_player, stats, ctx, tt)
-            if v < best_val:
+            if v < best_val or best_move is None:
                 best_val, best_move = v, m
 
     out = (best_val, best_move)

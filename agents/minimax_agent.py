@@ -1,40 +1,12 @@
 from __future__ import annotations
 
 import time
-from typing import Any
 
 from agents.base import Agent
+from agents.utils import normalize_search_info
 from search.minimax import minimax, iterative_deepening_minimax
 from search.stats import SearchStats
 from search.evaluation import mobility_heuristic
-
-
-def _normalize_search_info(info: Any, *, default_depth: int) -> dict:
-    """
-    Normalize outputs so the rest of the codebase can always rely on:
-    {move, value, depth, time_s, nodes, cutoffs}
-    """
-    if not isinstance(info, dict):
-        raise TypeError(f"Expected dict from search routine, got {type(info).__name__}")
-
-    out = dict(info)
-
-    if "depth" not in out or out["depth"] is None:
-        if "reached_depth" in out and out["reached_depth"] is not None:
-            out["depth"] = int(out["reached_depth"])
-        elif "max_depth" in out and out["max_depth"] is not None:
-            out["depth"] = int(out["max_depth"])
-        else:
-            out["depth"] = int(default_depth)
-
-    if "time_s" not in out and "time" in out:
-        out["time_s"] = out["time"]
-
-    out.setdefault("time_s", 0.0)
-    out.setdefault("nodes", 0)
-    out.setdefault("cutoffs", 0)
-
-    return out
 
 
 class MinimaxAgent(Agent):
@@ -49,7 +21,7 @@ class MinimaxAgent(Agent):
         # Iterative deepening under a time budget
         if self.time_budget_s is not None:
             info = iterative_deepening_minimax(state, self.depth, eval_fn, self.time_budget_s)
-            return _normalize_search_info(info, default_depth=self.depth)
+            return normalize_search_info(info, default_depth=self.depth)
 
         # Fixed depth
         root = state.active_player

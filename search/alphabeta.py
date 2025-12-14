@@ -48,7 +48,7 @@ def alphabeta(
 
     key = None
     if tt is not None:
-        key = (state.key(), depth, root_player, alpha, beta)
+        key = (state.key(), depth, root_player)
         if key in tt:
             return tt[key]
 
@@ -70,7 +70,7 @@ def alphabeta(
                 state.apply_move(m), depth - 1, alpha, beta, eval_fn, root_player,
                 stats=stats, ctx=ctx, tt=tt, use_ordering=use_ordering, trace=trace, node_id=child_id
             )
-            if v > value:
+            if v > value or best_move is None:
                 value, best_move = v, m
             alpha = max(alpha, value)
             if alpha >= beta:
@@ -91,7 +91,7 @@ def alphabeta(
                 state.apply_move(m), depth - 1, alpha, beta, eval_fn, root_player,
                 stats=stats, ctx=ctx, tt=tt, use_ordering=use_ordering, trace=trace, node_id=child_id
             )
-            if v < value:
+            if v < value or best_move is None:
                 value, best_move = v, m
             beta = min(beta, value)
             if beta <= alpha:
