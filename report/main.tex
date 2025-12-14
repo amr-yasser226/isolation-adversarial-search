@@ -9,10 +9,12 @@
 \usepackage{subcaption}
 \usepackage{float}
 \usepackage[hidelinks]{hyperref}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 
 \graphicspath{{../figures/}{figures/}}
 
-\title{Adversarial Search in Isolation:\\Minimax vs.\ Alpha-Beta Pruning}
+\title{Adversarial Search in Isolation:\\Minimax, Alpha-Beta Pruning \& Monte Carlo Tree Search}
 \author{Amr Yasser}
 \date{\today}
 
@@ -20,26 +22,29 @@
 \maketitle
 
 \begin{abstract}
-This project implements the game \textit{Isolation} and compares two adversarial search algorithms:
-Minimax and Alpha-Beta pruning. We evaluate them under controlled conditions (same depth),
+This project implements the game \textit{Isolation} and compares three adversarial search algorithms:
+Minimax, Alpha-Beta pruning, and Monte Carlo Tree Search (MCTS). We evaluate them under controlled conditions (same depth),
 under realistic constraints (same time budget via iterative deepening), and in gameplay against a
 random baseline. We also demonstrate a critical practical insight: Alpha-Beta pruning effectiveness
-depends strongly on move ordering. Results show that Alpha-Beta expands far fewer nodes than
-Minimax at the same depth, and with good move ordering can reduce expansions dramatically.
+depends strongly on move ordering. Additionally, we compare MCTS---a simulation-based approach---against
+the traditional tree-search methods. Results show that Alpha-Beta expands far fewer nodes than
+Minimax at the same depth, while MCTS provides an alternative approach that doesn't require evaluation functions.
 \end{abstract}
 
 \section{Introduction}
 Adversarial search is a core technique for decision-making in deterministic, turn-based, perfect-information games.
 Minimax provides an optimal decision rule (under a depth limit and heuristic evaluation).
 Alpha-Beta pruning is an optimization that returns the same move as Minimax at a fixed depth, but can avoid
-exploring large parts of the game tree.
+exploring large parts of the game tree. Monte Carlo Tree Search (MCTS) takes a fundamentally different approach,
+using random simulations to estimate move quality without requiring a hand-crafted evaluation function.
 
 This report covers:
 \begin{itemize}
   \item the Isolation game, including state representation, actions, and transition function,
-  \item Minimax and Alpha-Beta in simple terms,
-  \item the evaluation function used,
-  \item experimental results: time, nodes explored, and depth reached,
+  \item Minimax, Alpha-Beta, and MCTS algorithms in simple terms,
+  \item the evaluation function used (for Minimax/Alpha-Beta),
+  \item experimental results: time, nodes explored, depth reached, and simulations,
+  \item comparison of tree-search vs simulation-based approaches,
   \item reflections on observed behavior and efficiency.
 \end{itemize}
 
@@ -76,6 +81,13 @@ Given a state \(s\) and action \(a\) (a destination cell), the transition \(T(s,
 A state is terminal if the active player has \textbf{no legal actions}. The player to move loses; equivalently,
 the winner is the opponent of the active player in the terminal state.
 
+\subsection{Game Tree Complexity}
+\begin{itemize}
+  \item \textbf{Branching factor}: Initially 36 (all cells available), averaging around 10--15 in mid-game as cells become blocked.
+  \item \textbf{Depth}: Games typically last 20--35 moves depending on play style.
+  \item \textbf{Suitability}: The moderate branching factor and depth make Isolation ideal for comparing search algorithms---deep enough to be non-trivial, but manageable for real-time play.
+\end{itemize}
+
 \section{Algorithms}
 \subsection{Minimax (depth-limited)}
 Minimax searches a game tree to depth \(d\), alternating:
@@ -93,7 +105,24 @@ Alpha-Beta pruning returns the same move/value as Minimax at a fixed depth, but 
 \end{itemize}
 If \(\alpha \ge \beta\), the remaining sibling branches cannot affect the final choice and are pruned.
 
-\subsection{Evaluation function}
+\subsection{Monte Carlo Tree Search (MCTS)}
+MCTS is a simulation-based algorithm that learns move quality through random playouts. It does not require
+an evaluation function. Each iteration consists of four phases:
+
+\begin{enumerate}
+  \item \textbf{Selection}: Starting from the root, repeatedly select the best child using UCB1 until reaching a leaf.
+  \item \textbf{Expansion}: Add a new child node for an unexplored move.
+  \item \textbf{Simulation}: Play random moves from the new node until a terminal state is reached.
+  \item \textbf{Backpropagation}: Update win/visit counts from the terminal result back to the root.
+\end{enumerate}
+
+The UCB1 formula balances exploitation and exploration:
+\[
+\text{UCB1}(v) = \frac{w_v}{n_v} + c \sqrt{\frac{\ln N_p}{n_v}}
+\]
+where \(w_v\) is wins, \(n_v\) is visits for node \(v\), \(N_p\) is parent visits, and \(c \approx 1.41\) is the exploration constant.
+
+\subsection{Evaluation function (for Minimax/Alpha-Beta)}
 We use a standard Isolation heuristic: \textbf{mobility difference}
 \[
 h(s) = \#\text{legal moves for root} - \#\text{legal moves for opponent}.
@@ -111,6 +140,7 @@ We record \textbf{depth reached} as the deepest fully-completed depth within the
   \item \textbf{Setup B (same time):} compare behavior under a fixed time budget and record depth reached.
   \item \textbf{Setup C (vs random):} measure win rate and efficiency in gameplay against a random baseline.
   \item \textbf{Setup D (move ordering):} isolate the impact of move ordering on Alpha-Beta pruning.
+  \item \textbf{Setup E (MCTS comparison):} compare MCTS against Alpha-Beta under the same time budget.
 \end{itemize}
 
 \section{Results}
@@ -174,6 +204,25 @@ We record \textbf{depth reached} as the deepest fully-completed depth within the
   \caption{Visualization of Alpha-Beta pruning (ordered). Pruned branches are omitted/marked.}
 \end{figure}
 
+\subsection{Setup E (MCTS vs Alpha-Beta)}
+\begin{figure}[H]
+  \centering
+  \begin{subcaptionbox}{Wins vs Random baseline\label{fig:setupE_random}}
+    {\includegraphics[width=0.48\textwidth]{setupE_wins_vs_random.png}}
+  \end{subcaptionbox}\hfill
+  \begin{subcaptionbox}{Head-to-head matchups\label{fig:setupE_h2h}}
+    {\includegraphics[width=0.48\textwidth]{setupE_head_to_head.png}}
+  \end{subcaptionbox}
+  \caption{Setup E: MCTS vs Alpha-Beta under the same time budget. Both algorithms perform well against Random, while Alpha-Beta tends to have an edge in head-to-head play for this game.}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.60\textwidth]{setupE_nodes.png}
+  \caption{Setup E: Average simulations (MCTS) vs nodes expanded (Alpha-Beta) per move.}
+  \label{fig:setupE_nodes}
+\end{figure}
+
 \section{Qualitative Gameplay Snapshots}
 \begin{figure}[H]
   \centering
@@ -191,18 +240,41 @@ We record \textbf{depth reached} as the deepest fully-completed depth within the
   \item \textbf{Efficiency vs strength:} At fixed depth, Alpha-Beta mainly improves efficiency (fewer nodes/time).
   Under time limits, the same efficiency often converts to \textbf{greater depth reached} (Fig.~\ref{fig:setupB_depth}),
   which can improve playing strength against non-trivial opponents.
+  
   \item \textbf{Move ordering matters:} Alpha-Beta pruning can range from modest to dramatic depending on move ordering,
   as shown by node and cutoff differences in Setup D.
+  
   \item \textbf{Heuristic suitability:} Mobility difference is a natural fit for Isolation because the win condition is
   directly tied to restricting legal moves. It is simple, fast, and effective for depth-limited search.
+  
+  \item \textbf{MCTS trade-offs:} MCTS requires no evaluation function design---a significant advantage for complex games.
+  However, for Isolation with its clear mobility heuristic, Alpha-Beta with good move ordering tends to outperform MCTS
+  under comparable time budgets. MCTS may shine more in games where good evaluation functions are hard to design.
+  
+  \item \textbf{Simulation vs Search:} MCTS explores the game tree ``horizontally'' through many simulations,
+  while Alpha-Beta explores ``vertically'' to greater depths. For Isolation's relatively low branching factor,
+  deep search with pruning proves effective.
 \end{itemize}
+
+\section{Interactive GUI}
+In addition to the command-line experiments, we provide a Pygame-based graphical user interface for interactive play.
+The GUI supports:
+\begin{itemize}
+  \item Human vs AI gameplay (select your moves by clicking)
+  \item AI vs AI demonstrations (watch different algorithms compete)
+  \item Real-time statistics display (nodes, depth, simulations, time per move)
+  \item Selection from all implemented agents (Random, Minimax, Alpha-Beta, MCTS)
+\end{itemize}
+
+To launch the GUI: \texttt{python -m gui.game\_gui}
 
 \section{Reproducibility}
 From the project root:
 \begin{itemize}
   \item Run tests: \texttt{python -m pytest -q}
-  \item Run experiments (A--D): \texttt{python -m experiments.run\_setups}
+  \item Run experiments (A--E): \texttt{python -m experiments.run\_setups}
   \item Generate all figures + snapshots: \texttt{python -m visualization.auto\_generate\_figures}
+  \item Launch interactive GUI: \texttt{python -m gui.game\_gui}
 \end{itemize}
 
 \end{document}
